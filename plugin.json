@@ -1,0 +1,11 @@
+{
+  "name": "Profile Launcher",
+  "author": "JD",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": ["utility", "system"],
+    "description": "Pick a numbered profile before launching any game whose launch options or target point at a .sh script. The chosen profile is written into the script's PROFILE variable, then the game launches.",
+    "image": ""
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "profile-launcher",
+  "version": "1.0.0",
+  "description": "Pick a profile before launching a .sh-based game and write it into the script.",
+  "type": "module",
+  "scripts": {
+    "build": "shx rm -rf dist && rollup -c",
+    "watch": "rollup -c -w"
+  },
+  "dependencies": {
+    "@decky/api": "^1.1.2",
+    "@decky/ui": "^4.7.2",
+    "react-icons": "^5.2.1"
+  },
+  "devDependencies": {
+    "@decky/rollup": "^1.0.1",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "rollup": "^4.20.0",
+    "shx": "^0.3.4",
+    "typescript": "^5.5.4"
+  }
+}
