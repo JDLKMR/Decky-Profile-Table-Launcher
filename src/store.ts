@@ -6,6 +6,7 @@ import {
   setSettings,
   forgetGame,
 } from "./backend";
+import { hasLinks } from "./links";
 import { isExcluded } from "./util";
 
 let cache: Settings | null = null;
@@ -57,15 +58,16 @@ export async function updateSettings(patch: Partial<Settings>) {
   cache = await setSettings(patch);
 
   // A newly-added exclusion should retire any game already detected under
-  // that name, otherwise a stale entry keeps prompting on launch.
+  // that name, otherwise a stale entry keeps prompting on launch. A game
+  // that also has shortcut links keeps prompting — only its script goes.
   if (patch.excludedScripts && cache) {
     const stale = Object.entries(cache.games).filter(
       ([, config]) => config.detected && isExcluded(config.script, patch.excludedScripts),
     );
-    for (const [appId] of stale) {
+    for (const [appId, config] of stale) {
       cache.games[appId] = await setGameConfig(appId, {
         detected: false,
-        enabled: false,
+        ...(hasLinks(config) ? {} : { enabled: false }),
       });
     }
   }

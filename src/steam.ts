@@ -130,3 +130,40 @@ export function listLibraryApps(): { appId: number; name: string }[] {
   }
   return [...seen].map(([appId, name]) => ({ appId, name }));
 }
+
+/** Steam's app_type for a non-Steam shortcut (0x40000000). */
+const SHORTCUT_APP_TYPE = 1073741824;
+
+/**
+ * The installed Steam and non-Steam games, alphabetized, for the game
+ * dropdowns. Installed games and Deck desktop apps come from their own
+ * collections; non-Steam shortcuts are also pulled from the full library by
+ * app type, in case this Steam build doesn't list them as "local". If none of
+ * that turns anything up, fall back to the whole library rather than showing
+ * an empty dropdown.
+ */
+export function listInstalledApps(): { appId: number; name: string }[] {
+  const seen = new Map<number, string>();
+  const add = (app: any) => {
+    if (app?.appid && !seen.has(app.appid)) {
+      seen.set(app.appid, app.display_name ?? `App ${app.appid}`);
+    }
+  };
+
+  for (const collection of [
+    collectionStore?.localGamesCollection,
+    collectionStore?.deckDesktopApps,
+  ]) {
+    for (const app of collection?.allApps ?? []) add(app);
+  }
+  for (const app of collectionStore?.allAppsCollection?.allApps ?? []) {
+    if (app?.app_type === SHORTCUT_APP_TYPE) add(app);
+  }
+  if (!seen.size) {
+    for (const app of collectionStore?.allAppsCollection?.allApps ?? []) add(app);
+  }
+
+  return [...seen]
+    .map(([appId, name]) => ({ appId, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}

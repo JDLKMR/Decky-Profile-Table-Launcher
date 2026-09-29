@@ -1,8 +1,16 @@
 import { toaster } from "@decky/api";
 import { resolveScript, writeProfile } from "./backend";
-import { ProfileOption, promptForProfile } from "./ProfileModal";
+import { LinkEntry, buildPromptEntries, hasLinks, pickDefaultKey } from "./links";
+import { promptForProfile } from "./ProfileModal";
 import { gameConfig, hasNoScript, markNoScript, snapshot, updateGame } from "./store";
-import { cancelLaunch, getGameId, getLaunchInfo, resolveAppId, runGame } from "./steam";
+import {
+  cancelLaunch,
+  getGameId,
+  getLaunchInfo,
+  getOverview,
+  resolveAppId,
+  runGame,
+} from "./steam";
 import { basename } from "./util";
 
 /** appIds we relaunched ourselves — their next GameActionStart passes through. */
@@ -62,15 +70,17 @@ async function onGameActionStart(rawGameActionId: string, action: string) {
     return;
   }
   if (busy.has(appId)) return;
-  if (hasNoScript(appId)) return;
 
   const config = gameConfig(appId);
 
-  // Known game, prompting switched off, or known to have no script: do nothing.
-  if (config && (!config.enabled || !config.detected)) return;
+  if (config) {
+    // Prompting switched off: do nothing.
+    if (!config.enabled) return;
+    // Known to have no script, and no shortcut links to offer either.
+    if (!config.detected && !hasLinks(config)) return;
 
-  if (config?.detected) {
-    // Known .sh game: stop the launch immediately, then take our time.
+    // A .sh game, a game with shortcut links, or both: stop the launch
+    // immediately, then take our time.
     busy.add(appId);
     cancelLaunch(getGameId(Number(appId)));
     try {
@@ -80,6 +90,9 @@ async function onGameActionStart(rawGameActionId: string, action: string) {
     }
     return;
   }
+
+  // Never configured and already known to have no script.
+  if (hasNoScript(appId)) return;
 
   // First time we've seen this app. Look it up before deciding, and only
   // interrupt if a script actually turns up. The first launch of a new
@@ -121,55 +134,71 @@ async function handleLaunch(appId: string, knownGameId?: string) {
   // so an edit to the script shows up on the very next launch.
   const script = await resolveScript(info.exe, info.launchOptions);
 
-  if (!script.path) {
-    await updateGame(appId, { detected: false, enabled: false, script: "" });
-    relaunch(appId, gameId);
-    return;
-  }
-
-  if (!script.exists) {
-    toast("Profile Launcher", `Script not found: ${script.path}`);
-    relaunch(appId, gameId);
-    return;
-  }
-
-  if (!script.profiles.length) {
-    await updateGame(appId, { name: info.name, script: script.path, detected: true });
-    toast(
-      "Profile Launcher",
-      `No PROFILE_NAMES table found in ${basename(script.path)} — launching unchanged.`,
-    );
-    relaunch(appId, gameId);
-    return;
-  }
-
   const config = gameConfig(appId);
-  const options: ProfileOption[] = script.profiles;
-  const defaultValue =
-    config?.lastProfile && options.some((o) => o.value === config.lastProfile)
-      ? config.lastProfile
-      : (options[0]?.value ?? null);
+  const links = config?.links ?? [];
+  const scriptUsable = !!script.path && script.exists && script.profiles.length > 0;
+
+  if (!scriptUsable && !links.length) {
+    // Nothing to offer: launch normally, saying why if there's something to fix.
+    if (!script.path) {
+      await updateGame(appId, { detected: false, enabled: false, script: "" });
+    } else if (!script.exists) {
+      toast("Profile Launcher", `Script not found: ${script.path}`);
+    } else {
+      await updateGame(appId, { name: info.name, script: script.path, detected: true });
+      toast(
+        "Profile Launcher",
+        `No PROFILE_NAMES table found in ${basename(script.path)} — launching unchanged.`,
+      );
+    }
+    relaunch(appId, gameId);
+    return;
+  }
+
+  // The shortcut links are still worth offering, but a script that's
+  // referenced and missing is worth flagging.
+  if (script.path && !script.exists) {
+    toast("Profile Launcher", `Script not found: ${script.path}`);
+  }
+
+  // One list: the script's profiles in table order, then shortcut links
+  // (each placed by its number override, or last, alphabetically).
+  const entries = buildPromptEntries(scriptUsable ? script.profiles : [], links);
+  const defaultKey = pickDefaultKey(entries, config);
 
   const choice = await promptForProfile({
     gameName: info.name,
-    scriptName: basename(script.path),
+    scriptName: scriptUsable ? basename(script.path) : "",
     variable,
-    currentValue: script.value,
-    options,
-    defaultValue,
+    currentValue: scriptUsable ? script.value : null,
+    entries,
+    defaultKey,
   });
 
+  const picked = choice.entry;
   await updateGame(appId, {
     name: info.name,
-    script: script.path,
-    detected: true,
+    ...(scriptUsable ? { script: script.path, detected: true } : {}),
     enabled: choice.keepAsking,
-    ...(choice.profile ? { lastProfile: choice.profile } : {}),
+    ...(picked?.kind === "profile" ? { lastProfile: picked.value, lastLinkId: null } : {}),
+    ...(picked?.kind === "default" ? { lastLinkId: null } : {}),
+    ...(picked?.kind === "link" ? { lastLinkId: picked.linkId } : {}),
   });
 
-  if (choice.profile === null) {
+  if (!picked) {
     if (choice.skipWrite) relaunch(appId, gameId);
     return; // cancelled: leave the game closed
+  }
+
+  if (picked.kind === "link") {
+    launchLink(picked);
+    return;
+  }
+
+  if (picked.kind === "default") {
+    // Just this game, opened normally — no script to touch.
+    relaunch(appId, gameId);
+    return;
   }
 
   if (!script.hasVariable) {
@@ -181,13 +210,26 @@ async function handleLaunch(appId: string, knownGameId?: string) {
     return;
   }
 
-  const result = await writeProfile(script.path, choice.profile);
+  const result = await writeProfile(script.path, picked.value);
   if (!result.ok) {
     toast("Profile Launcher — not launched", result.error ?? "Could not update the script.");
     return;
   }
 
   relaunch(appId, gameId);
+}
+
+/**
+ * Open the linked game instead of running this game's script. Starting it
+ * goes through the same launch hook as any other game, so if the linked game
+ * has its own profile prompt, that prompt appears as usual.
+ */
+function launchLink(entry: LinkEntry) {
+  if (!getOverview(entry.targetAppId)) {
+    toast("Profile Launcher", `Linked game not found: ${entry.label}`);
+    return;
+  }
+  runGame(getGameId(entry.targetAppId));
 }
 
 function relaunch(appId: string, gameId: string) {

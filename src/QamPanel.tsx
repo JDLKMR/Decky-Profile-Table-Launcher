@@ -8,10 +8,20 @@ import {
   showModal,
 } from "@decky/ui";
 import { FC, useEffect, useState } from "react";
-import { Settings } from "./backend";
+import { GameConfig, Settings } from "./backend";
 import GameProfilesModal from "./GameProfilesModal";
+import { promptPickGame } from "./LinkModals";
+import { hasLinks } from "./links";
 import { scanLibrary } from "./scan";
-import { dropGame, refresh, snapshot, subscribe, updateGame, updateSettings } from "./store";
+import {
+  dropGame,
+  gameConfig,
+  refresh,
+  snapshot,
+  subscribe,
+  updateGame,
+  updateSettings,
+} from "./store";
 import { basename, isExcluded } from "./util";
 
 const QamPanel: FC = () => {
@@ -36,9 +46,42 @@ const QamPanel: FC = () => {
   const games = Object.entries(settings.games)
     .filter(
       ([, config]) =>
-        config.detected && !isExcluded(config.script, settings.excludedScripts),
+        hasLinks(config) ||
+        (config.detected && !isExcluded(config.script, settings.excludedScripts)),
     )
     .sort((a, b) => (a[1].name ?? "").localeCompare(b[1].name ?? ""));
+
+  const describe = (config: GameConfig) => {
+    const parts: string[] = [];
+    if (config.detected && config.script && !isExcluded(config.script, settings.excludedScripts)) {
+      parts.push(basename(config.script));
+    }
+    const n = config.links?.length ?? 0;
+    if (n) parts.push(`${n} shortcut link${n === 1 ? "" : "s"}`);
+    return parts.join(" · ");
+  };
+
+  // Games with shortcut links are your own setup, not something detected, so
+  // "forget" leaves them alone.
+  const forgettable = games.filter(([, config]) => !hasLinks(config));
+
+  const addLinkGame = async () => {
+    const picked = await promptPickGame({
+      title: "Add shortcut links to a game",
+      description:
+        "Choose the game whose launch prompt should offer shortcut links. It doesn't need a .sh script.",
+      confirmLabel: "Continue",
+      askName: false,
+    });
+    if (!picked) return;
+
+    const id = String(picked.appId);
+    await updateGame(id, {
+      name: picked.name,
+      enabled: gameConfig(id)?.enabled ?? settings.askByDefault,
+    });
+    showModal(<GameProfilesModal appId={id} fallbackName={picked.name} />, window);
+  };
 
   const runScan = async () => {
     setScanning("Scanning…");
@@ -62,11 +105,17 @@ const QamPanel: FC = () => {
           </ButtonItem>
         </PanelSectionRow>
 
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={() => void addLinkGame()}>
+            Add shortcut links to a game...
+          </ButtonItem>
+        </PanelSectionRow>
+
         {games.length === 0 && (
           <PanelSectionRow>
             <Field
               label="Nothing detected yet"
-              description="Scan your library, or just launch a game whose launch options point at a .sh file."
+              description="Scan your library, launch a game whose launch options point at a .sh file, or add shortcut links to a game."
               bottomSeparator="none"
               focusable
             />
@@ -77,7 +126,7 @@ const QamPanel: FC = () => {
           <PanelSectionRow key={appId}>
             <ToggleField
               label={config.name || `App ${appId}`}
-              description={basename(config.script)}
+              description={describe(config)}
               checked={config.enabled}
               onChange={(enabled) => void updateGame(appId, { enabled })}
             />
@@ -90,7 +139,7 @@ const QamPanel: FC = () => {
                 )
               }
             >
-              View Profiles...
+              Game Settings...
             </ButtonItem>
           </PanelSectionRow>
         ))}
@@ -175,12 +224,12 @@ const QamPanel: FC = () => {
           />
         </PanelSectionRow>
 
-        {games.length > 0 && (
+        {forgettable.length > 0 && (
           <PanelSectionRow>
             <ButtonItem
               layout="below"
               onClick={async () => {
-                for (const [appId] of games) await dropGame(appId);
+                for (const [appId] of forgettable) await dropGame(appId);
               }}
             >
               Forget all detected games

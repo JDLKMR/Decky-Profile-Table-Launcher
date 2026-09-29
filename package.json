@@ -1,6 +1,6 @@
 {
   "name": "profile-launcher",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Pick a profile before launching a .sh-based game and write it into the script.",
   "type": "module",
   "scripts": {

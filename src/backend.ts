@@ -1,11 +1,33 @@
 import { call } from "@decky/api";
 
+/**
+ * A link that lets a game's launch prompt open another Steam or non-Steam
+ * shortcut instead of running that game's script.
+ */
+export interface ShortcutLink {
+  /** Stable identifier, so renaming or reordering never loses track of it. */
+  id: string;
+  /** AppID of the game this link opens. */
+  targetAppId: number;
+  /** Name shown in the launch prompt — chosen when added, renameable later. */
+  name: string;
+  /**
+   * Optional 1-based number this link should take in the launch prompt.
+   * Missing = default, which puts it after every script profile.
+   */
+  position?: number;
+}
+
 export interface GameConfig {
   name: string;
   script: string;
   enabled: boolean;
   lastProfile: number;
   detected: boolean;
+  /** Shortcut links offered alongside (or instead of) the script's profiles. */
+  links?: ShortcutLink[];
+  /** Set when the last thing picked was a link rather than a script profile. */
+  lastLinkId?: string | null;
 }
 
 export interface Settings {
