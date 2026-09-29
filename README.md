@@ -25,7 +25,7 @@ This minimizes the amount of split configuration (such as artwork, playtime, mus
 
 You can also set a Steam shortcut link as a profile, which instead of reading or editing the game's script, simply takes you to another Steam shortcut of your choosing and automatically opens it.
 
-Just watch out for Steam Input. It will be shared across all profiles, naturally.
+Just watch out for Steam Input. It will be shared across all profiles (with the exception of Steam shortcut links), naturally.
 
 ## Features
 - Works with both Steam and non-Steam games
