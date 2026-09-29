@@ -23,6 +23,8 @@ So for example, you can select the second profile in the launch prompt to set `P
 
 This minimizes the amount of split configuration (such as artwork, playtime, music, achievements, etc. if you have other plugins) between shortcuts and centralizes everything into one game shortcut.
 
+You can also set a Steam shortcut link as a profile, which instead of reading or editing the game's script, simply takes you to another Steam shortcut of your choosing and automatically opens it.
+
 Just watch out for Steam Input. It will be shared across all profiles, naturally.
 
 ## Features
@@ -31,6 +33,7 @@ Just watch out for Steam Input. It will be shared across all profiles, naturally
 - Add filename exclusions for .sh files
 - Change the name of the variable it looks for to edit in the script
 - Save backups of your scripts upon first-time use (can be toggled off)
+- Save another Steam shortcut as a profile which directly takes you to it and opens it
 
 ## Example Use
 Having one single Steam shortcut for The Legend of Zelda: Ocarina of Time, then using the script's profiles and this plugin to split it between:
