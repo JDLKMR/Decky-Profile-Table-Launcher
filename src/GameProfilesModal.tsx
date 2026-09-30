@@ -1,9 +1,15 @@
 import { DialogButton, DropdownItem, Focusable, ModalRoot, ToggleField } from "@decky/ui";
 import { FC, useEffect, useState } from "react";
-import { FaPen, FaTrash } from "react-icons/fa";
+import { FaPen, FaTrash, FaUndo } from "react-icons/fa";
 import { GameConfig, ShortcutLink, TableProfile, resolveScript } from "./backend";
 import { promptLinkName, promptPickGame } from "./LinkModals";
-import { buildPromptEntries, hasLinks, minLinkPosition, newLinkId } from "./links";
+import {
+  DEFAULT_LABEL,
+  buildPromptEntries,
+  hasLinks,
+  minLinkPosition,
+  newLinkId,
+} from "./links";
 import { gameConfig, snapshot, updateGame } from "./store";
 import { getLaunchInfo, getOverview } from "./steam";
 import { basename } from "./util";
@@ -85,7 +91,8 @@ const GameProfilesModal: FC<Props> = ({ appId, fallbackName, closeModal }) => {
   }, [appId]);
 
   const links = config?.links ?? [];
-  const entries = buildPromptEntries(profiles, links);
+  const entries = buildPromptEntries(profiles, links, config?.defaultName);
+  const hasCustomDefaultName = !!config?.defaultName?.trim();
   const minPosition = minLinkPosition(profiles);
 
   // Read the latest links from the store rather than a render's closure, so
@@ -114,6 +121,18 @@ const GameProfilesModal: FC<Props> = ({ appId, fallbackName, closeModal }) => {
     const next = await promptLinkName(link.name);
     if (next === null) return;
     await saveLinks(latestLinks().map((l) => (l.id === link.id ? { ...l, name: next } : l)));
+  };
+
+  // The Default entry (opens this game normally when it has no script
+  // profiles) can be given this game's own name; empty means "Default".
+  const renameDefault = async (current: string) => {
+    const next = await promptLinkName(current, "Rename default profile");
+    if (next === null) return;
+    setConfig(await updateGame(appId, { defaultName: next === DEFAULT_LABEL ? "" : next }));
+  };
+
+  const resetDefaultName = async () => {
+    setConfig(await updateGame(appId, { defaultName: "" }));
   };
 
   const removeLink = async (link: ShortcutLink) => {
@@ -172,16 +191,44 @@ const GameProfilesModal: FC<Props> = ({ appId, fallbackName, closeModal }) => {
 
           {entries.length > 0 ? (
             <Focusable style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-              {entries.map((entry, index) => (
-                <div key={entry.key} style={{ padding: "6px 0", opacity: 0.9 }}>
-                  {index + 1}. {entry.label}
-                  {entry.kind !== "profile" && (
-                    <span style={{ opacity: 0.5, fontSize: "0.85em", marginLeft: "8px" }}>
-                      {entry.kind === "link" ? "shortcut" : "this game"}
-                    </span>
-                  )}
-                </div>
-              ))}
+              {entries.map((entry, index) =>
+                entry.kind === "default" ? (
+                  <Focusable
+                    key={entry.key}
+                    style={{ display: "flex", alignItems: "center", gap: "2px" }}
+                  >
+                    <div style={{ flexGrow: 1, minWidth: 0, padding: "6px 0", opacity: 0.9 }}>
+                      {index + 1}. {entry.label}
+                      <span style={{ opacity: 0.5, fontSize: "0.85em", marginLeft: "8px" }}>
+                        this game
+                      </span>
+                    </div>
+                    <DialogButton
+                      onClick={() => void renameDefault(entry.label)}
+                      style={iconButtonStyle}
+                    >
+                      <FaPen size={11} />
+                    </DialogButton>
+                    {hasCustomDefaultName && (
+                      <DialogButton
+                        onClick={() => void resetDefaultName()}
+                        style={iconButtonStyle}
+                      >
+                        <FaUndo size={11} />
+                      </DialogButton>
+                    )}
+                  </Focusable>
+                ) : (
+                  <div key={entry.key} style={{ padding: "6px 0", opacity: 0.9 }}>
+                    {index + 1}. {entry.label}
+                    {entry.kind === "link" && (
+                      <span style={{ opacity: 0.5, fontSize: "0.85em", marginLeft: "8px" }}>
+                        shortcut
+                      </span>
+                    )}
+                  </div>
+                ),
+              )}
             </Focusable>
           ) : (
             loaded && (

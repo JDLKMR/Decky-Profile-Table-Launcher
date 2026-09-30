@@ -28,6 +28,11 @@ export interface GameConfig {
   links?: ShortcutLink[];
   /** Set when the last thing picked was a link rather than a script profile. */
   lastLinkId?: string | null;
+  /**
+   * This game's own name for the Default entry (the one that opens the game
+   * normally when it has no script profiles). Empty or missing = "Default".
+   */
+  defaultName?: string;
 }
 
 export interface Settings {

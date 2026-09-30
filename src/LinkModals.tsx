@@ -127,12 +127,13 @@ export function promptPickGame(
 }
 
 interface RenameProps {
+  title: string;
   currentName: string;
   onResult: (name: string | null) => void;
   closeModal?: () => void;
 }
 
-const RenameLinkModal: FC<RenameProps> = ({ currentName, onResult, closeModal }) => {
+const RenameLinkModal: FC<RenameProps> = ({ title, currentName, onResult, closeModal }) => {
   const [value, setValue] = useState(currentName);
   const settled = useRef(false);
 
@@ -148,7 +149,7 @@ const RenameLinkModal: FC<RenameProps> = ({ currentName, onResult, closeModal })
   return (
     <ModalRoot onCancel={() => settle(null)} onEscKeypress={() => settle(null)}>
       <div style={{ fontSize: "1.4em", fontWeight: "bold", marginBottom: "12px" }}>
-        Rename shortcut link
+        {title}
       </div>
 
       <TextField
@@ -167,8 +168,14 @@ const RenameLinkModal: FC<RenameProps> = ({ currentName, onResult, closeModal })
   );
 };
 
-export function promptLinkName(currentName: string): Promise<string | null> {
+export function promptLinkName(
+  currentName: string,
+  title = "Rename shortcut link",
+): Promise<string | null> {
   return new Promise((resolve) => {
-    showModal(<RenameLinkModal currentName={currentName} onResult={resolve} />, window);
+    showModal(
+      <RenameLinkModal title={title} currentName={currentName} onResult={resolve} />,
+      window,
+    );
   });
 }

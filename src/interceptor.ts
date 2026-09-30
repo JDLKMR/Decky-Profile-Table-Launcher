@@ -163,7 +163,11 @@ async function handleLaunch(appId: string, knownGameId?: string) {
 
   // One list: the script's profiles in table order, then shortcut links
   // (each placed by its number override, or last, alphabetically).
-  const entries = buildPromptEntries(scriptUsable ? script.profiles : [], links);
+  const entries = buildPromptEntries(
+    scriptUsable ? script.profiles : [],
+    links,
+    config?.defaultName,
+  );
   const defaultKey = pickDefaultKey(entries, config);
 
   const choice = await promptForProfile({

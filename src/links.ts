@@ -31,7 +31,8 @@ export interface DefaultEntry {
 /** One row in the launch prompt. Script profiles and links share one list. */
 export type PromptEntry = ScriptEntry | LinkEntry | DefaultEntry;
 
-const DEFAULT_ENTRY: DefaultEntry = { kind: "default", key: "d:default", label: "Default" };
+/** What the Default entry is called until a game gives it its own name. */
+export const DEFAULT_LABEL = "Default";
 
 export const hasLinks = (config: Pick<GameConfig, "links"> | undefined): boolean =>
   (config?.links?.length ?? 0) > 0;
@@ -72,8 +73,9 @@ export const minLinkPosition = (profiles: TableProfile[]): number =>
  * list the launch prompt shows.
  *
  * - Script profiles keep the order they have in the script's table.
- * - With no script profiles, a Default entry (just launches the game) takes
- *   their place at the top, and stays there.
+ * - With no script profiles, a Default entry (just launches the game, named
+ *   `defaultLabel` if the game has renamed it) takes their place at the top,
+ *   and stays there.
  * - Links with no number override go after everything above, sorted
  *   alphabetically by their current name.
  * - A link with a number override is inserted so it shows up as that number,
@@ -86,12 +88,21 @@ export const minLinkPosition = (profiles: TableProfile[]): number =>
 export function buildPromptEntries(
   profiles: TableProfile[],
   links: ShortcutLink[],
+  defaultLabel?: string,
 ): PromptEntry[] {
   // Default only exists to give a link-only game something at the top.
   const needsDefault = profiles.length === 0 && links.length > 0;
 
   const entries: PromptEntry[] = [
-    ...(needsDefault ? [DEFAULT_ENTRY] : []),
+    ...(needsDefault
+      ? [
+          {
+            kind: "default",
+            key: "d:default",
+            label: defaultLabel?.trim() || DEFAULT_LABEL,
+          } as DefaultEntry,
+        ]
+      : []),
     ...profiles.map(
       (p): ScriptEntry => ({
         kind: "profile",
